@@ -31,7 +31,11 @@ pub struct Account {
 
 impl Account {
     /// Creates a new account with a newly generated ULID and the current UTC time.
-    pub fn new(name: impl Into<String>, account_type: AccountType, currency: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        account_type: AccountType,
+        currency: impl Into<String>,
+    ) -> Self {
         Self {
             id: Ulid::generate(),
             name: name.into(),

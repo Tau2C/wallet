@@ -112,7 +112,9 @@ impl Transaction {
         // Group postings by currency
         let mut currency_sums = std::collections::HashMap::new();
         for p in &self.postings {
-            *currency_sums.entry(p.currency.clone()).or_insert(Decimal::ZERO) += p.amount;
+            *currency_sums
+                .entry(p.currency.clone())
+                .or_insert(Decimal::ZERO) += p.amount;
         }
 
         // If all postings share a single currency, verify net balance is zero
