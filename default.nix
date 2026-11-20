@@ -20,5 +20,6 @@ pkgs.mkShell {
     flutter
     flutter_rust_bridge_codegen
     pkg-config
+    gh
   ];
 }
