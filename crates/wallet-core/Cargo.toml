@@ -12,4 +12,5 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
 
 [dev-dependencies]
+rust_decimal_macros = "1.36"
 pretty_assertions = "1.4"
