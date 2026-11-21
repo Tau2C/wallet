@@ -1,5 +1,17 @@
+# Rust build artifacts
 target/
+
+# Nix & Direnv
 .direnv/
+
+# Flutter & Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.lock
+
+# IDEs & OS
 *.iml
 .idea/
 .DS_Store
