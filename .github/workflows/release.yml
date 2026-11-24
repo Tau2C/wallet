@@ -56,10 +56,14 @@ jobs:
           restore-keys: |
             cargo-ndk-${{ runner.os }}-
 
-      - name: Install cargo-ndk & flutter_rust_bridge_codegen
+      - name: Install cargo-ndk
+        run: which cargo-ndk || cargo install cargo-ndk
+
+      - name: Build Rust Native Android Libraries (.so)
         run: |
-          which cargo-ndk || cargo install cargo-ndk
-          which flutter_rust_bridge_codegen || cargo install flutter_rust_bridge_codegen --version ~2.0
+          mkdir -p android/app/src/main/jniLibs
+          cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o android/app/src/main/jniLibs build --release -p wallet-core
+          ls -la android/app/src/main/jniLibs/
 
       - name: Decode signing keystore
         env:
@@ -76,18 +80,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -d "android" ]; then
-            flutter build apk --release
-          else
-            cargo build --release -p wallet-core
-            echo "Core library built. Flutter project not yet attached."
-          fi
+          flutter pub get
+          flutter build apk --release
 
       - name: Collect build artifacts
         run: |
           mkdir -p release-artifacts
-          find . -name "*.apk" -exec cp {} release-artifacts/ \;
-          ls -la release-artifacts/ || true
+          find build/app/outputs/flutter-apk -name "*.apk" -exec cp {} release-artifacts/ \;
+          ls -la release-artifacts/
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -110,7 +110,7 @@ jobs:
           mkdir -p fdroid-repo/repo
 
           TAG_NAME="${GITHUB_REF_NAME:-latest}"
-          APK_FILE=$(find release-artifacts -name "*.apk" | head -n 1)
+          APK_FILE=$(find release-artifacts -name "*release*.apk" | head -n 1)
           if [ -n "$APK_FILE" ]; then
             cp "$APK_FILE" "fdroid-repo/repo/top.tau2c.wallet_${TAG_NAME}.apk"
             cd fdroid-repo
