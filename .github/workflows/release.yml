@@ -118,3 +118,11 @@ jobs:
             git commit -m "feat(wallet): add Wallet release ${TAG_NAME}" || exit 0
             git push origin master
           fi
+
+      - name: Trigger F-Droid Repo Update
+        if: ${{ env.FDROID_REPO_TOKEN != '' }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.FDROID_REPO_TOKEN }}
+          repository: Tau2C/fdroid-repo
+          event-type: new-release
