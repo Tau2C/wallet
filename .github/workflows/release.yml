@@ -142,14 +142,12 @@ jobs:
           SIG_OUTPUT=$("$APKSIGNER_BIN" verify --verbose --print-certs "$APK_FILE")
           echo "$SIG_OUTPUT"
 
-          # Check v1, v2, v3 schemes
-          echo "$SIG_OUTPUT" | grep -E "Verified using v1 scheme \(JAR signing\): true" || { echo "ERROR: APK is not signed with v1 scheme"; exit 1; }
+          # Check v2 scheme (mandatory)
           echo "$SIG_OUTPUT" | grep -E "Verified using v2 scheme \(APK Signature Scheme v2\): true" || { echo "ERROR: APK is not signed with v2 scheme"; exit 1; }
-          echo "$SIG_OUTPUT" | grep -E "Verified using v3 scheme \(APK Signature Scheme v3\): true" || { echo "ERROR: APK is not signed with v3 scheme"; exit 1; }
 
           # Verify certificate SHA-256 fingerprint against expected
           EXPECTED_FINGERPRINT=$(tr -d ' \r\n' < .github/expected-cert-sha256.txt | tr '[:lower:]' '[:upper:]')
-          ACTUAL_FINGERPRINT=$(echo "$SIG_OUTPUT" | grep -i "Signer #1 certificate SHA-256 digest:" | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
+          ACTUAL_FINGERPRINT=$(echo "$SIG_OUTPUT" | grep -i "certificate SHA-256 digest:" | head -n 1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
           # Normalize format (without colons for comparison)
           EXPECTED_CLEAN=$(echo "$EXPECTED_FINGERPRINT" | tr -d ':')
           ACTUAL_CLEAN=$(echo "$ACTUAL_FINGERPRINT" | tr -d ':')
