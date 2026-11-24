@@ -80,13 +80,28 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          RAW_VERSION="${GITHUB_REF_NAME#v}"
+          CLEAN_VERSION=$(echo "$RAW_VERSION" | sed -E 's/-.*//')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CLEAN_VERSION"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-1}
+          PATCH=${PATCH:-0}
+          VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+          VERSION_NAME="${RAW_VERSION}"
+          echo "Building APK with versionName=${VERSION_NAME}, versionCode=${VERSION_CODE}"
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --build-name="${VERSION_NAME}" --build-number="${VERSION_CODE}"
 
       - name: Collect build artifacts
         run: |
           mkdir -p release-artifacts
-          find build/app/outputs/flutter-apk -name "*.apk" -exec cp {} release-artifacts/ \;
+          TAG_NAME="${GITHUB_REF_NAME:-0.1.0}"
+          APK_FILE=$(find build/app/outputs/flutter-apk -name "*release*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            cp "$APK_FILE" "release-artifacts/wallet-${TAG_NAME}.apk"
+          else
+            find build/app/outputs/flutter-apk -name "*.apk" -exec cp {} release-artifacts/ \;
+          fi
           ls -la release-artifacts/
 
       - name: Create GitHub Release
@@ -95,7 +110,7 @@ jobs:
         with:
           files: release-artifacts/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           generate_release_notes: true
 
       - name: Publish APK to F-Droid Repository
