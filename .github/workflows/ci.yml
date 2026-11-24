@@ -66,3 +66,22 @@ jobs:
           else
             echo "Katalog Fluttera nie został jeszcze dodany. Krok pominięty."
           fi
+
+      - name: Build & Verify Debug APK
+        run: |
+          flutter build apk --debug
+          APK_FILE=$(find build/app/outputs/flutter-apk -name "*debug*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            echo "Found debug APK: $APK_FILE"
+            sha256sum "$APK_FILE"
+
+            APKSIGNER_BIN=$(ls -d ${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n 1)
+            if [ ! -f "$APKSIGNER_BIN" ]; then
+              APKSIGNER_BIN=$(which apksigner 2>/dev/null || true)
+            fi
+
+            if [ -n "$APKSIGNER_BIN" ]; then
+              echo "Verifying debug APK signature with $APKSIGNER_BIN"
+              "$APKSIGNER_BIN" verify --verbose "$APK_FILE"
+            fi
+          fi

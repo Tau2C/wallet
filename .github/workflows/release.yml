@@ -104,6 +104,71 @@ jobs:
           fi
           ls -la release-artifacts/
 
+      - name: Verify APK Signature & Manifest Metadata
+        run: |
+          APK_FILE=$(find release-artifacts -name "*.apk" | head -n 1)
+          echo "Validating APK: $APK_FILE"
+
+          # Locate apksigner and apkanalyzer
+          APKSIGNER_BIN=$(ls -d ${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n 1)
+          APKANALYZER_BIN="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/cmdline-tools/latest/bin/apkanalyzer"
+
+          if [ ! -f "$APKSIGNER_BIN" ]; then
+            APKSIGNER_BIN=$(which apksigner 2>/dev/null || true)
+          fi
+          if [ ! -f "$APKANALYZER_BIN" ]; then
+            APKANALYZER_BIN=$(which apkanalyzer 2>/dev/null || true)
+          fi
+
+          echo "Using apksigner: $APKSIGNER_BIN"
+          echo "Using apkanalyzer: $APKANALYZER_BIN"
+
+          # 1. Run apksigner verify with verbose and cert printing
+          SIG_OUTPUT=$("$APKSIGNER_BIN" verify --verbose --print-certs "$APK_FILE")
+          echo "$SIG_OUTPUT"
+
+          # Check v1, v2, v3 schemes
+          echo "$SIG_OUTPUT" | grep -E "Verified using v1 scheme \(JAR signing\): true" || { echo "ERROR: APK is not signed with v1 scheme"; exit 1; }
+          echo "$SIG_OUTPUT" | grep -E "Verified using v2 scheme \(APK Signature Scheme v2\): true" || { echo "ERROR: APK is not signed with v2 scheme"; exit 1; }
+          echo "$SIG_OUTPUT" | grep -E "Verified using v3 scheme \(APK Signature Scheme v3\): true" || { echo "ERROR: APK is not signed with v3 scheme"; exit 1; }
+
+          # Verify certificate SHA-256 fingerprint against expected
+          EXPECTED_FINGERPRINT=$(tr -d ' \r\n' < .github/expected-cert-sha256.txt | tr '[:lower:]' '[:upper:]')
+          ACTUAL_FINGERPRINT=$(echo "$SIG_OUTPUT" | grep -i "Signer #1 certificate SHA-256 digest:" | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
+          # Normalize format (without colons for comparison)
+          EXPECTED_CLEAN=$(echo "$EXPECTED_FINGERPRINT" | tr -d ':')
+          ACTUAL_CLEAN=$(echo "$ACTUAL_FINGERPRINT" | tr -d ':')
+
+          echo "Expected Fingerprint: $EXPECTED_CLEAN"
+          echo "Actual Fingerprint:   $ACTUAL_CLEAN"
+
+          if [ "$EXPECTED_CLEAN" != "$ACTUAL_CLEAN" ]; then
+            echo "ERROR: Certificate fingerprint mismatch!"
+            exit 1
+          fi
+          echo "Certificate fingerprint verified successfully."
+
+          # 2. Verify Manifest Metadata with apkanalyzer if available
+          if [ -f "$APKANALYZER_BIN" ]; then
+            MIN_SDK=$("$APKANALYZER_BIN" manifest min-sdk "$APK_FILE" || true)
+            TARGET_SDK=$("$APKANALYZER_BIN" manifest target-sdk "$APK_FILE" || true)
+            APP_ID=$("$APKANALYZER_BIN" manifest application-id "$APK_FILE" || true)
+            echo "Manifest appId: $APP_ID, minSdk: $MIN_SDK, targetSdk: $TARGET_SDK"
+
+            if [ "$APP_ID" != "top.tau2c.wallet" ]; then
+              echo "ERROR: Unexpected application ID: $APP_ID"; exit 1;
+            fi
+            if [ -n "$MIN_SDK" ] && [ "$MIN_SDK" -lt 21 ]; then
+              echo "ERROR: minSdk ($MIN_SDK) is too low (expected >= 21)"; exit 1;
+            fi
+          fi
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd release-artifacts
+          sha256sum *.apk > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
