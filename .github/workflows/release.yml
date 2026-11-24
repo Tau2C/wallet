@@ -178,29 +178,8 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           generate_release_notes: true
 
-      - name: Publish APK to F-Droid Repository
-        if: ${{ env.FDROID_REPO_TOKEN != '' }}
-        env:
-          FDROID_REPO_TOKEN: ${{ secrets.FDROID_REPO_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          git clone "https://x-access-token:${FDROID_REPO_TOKEN}@github.com/Tau2C/fdroid-repo.git" fdroid-repo
-          mkdir -p fdroid-repo/repo
-
-          TAG_NAME="${GITHUB_REF_NAME:-latest}"
-          APK_FILE=$(find release-artifacts -name "*release*.apk" | head -n 1)
-          if [ -n "$APK_FILE" ]; then
-            cp "$APK_FILE" "fdroid-repo/repo/top.tau2c.wallet_${TAG_NAME}.apk"
-            cd fdroid-repo
-            git add -A repo/
-            git commit -m "feat(wallet): add Wallet release ${TAG_NAME}" || exit 0
-            git push origin master
-          fi
-
       - name: Trigger F-Droid Repo Update
-        if: ${{ env.FDROID_REPO_TOKEN != '' }}
+        if: ${{ env.FDROID_REPO_TOKEN != '' && !contains(github.ref_name, '-dev') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.FDROID_REPO_TOKEN }}
