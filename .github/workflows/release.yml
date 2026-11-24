@@ -84,9 +84,24 @@ jobs:
           CLEAN_VERSION=$(echo "$RAW_VERSION" | sed -E 's/-.*//')
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CLEAN_VERSION"
           MAJOR=${MAJOR:-0}
-          MINOR=${MINOR:-1}
+          MINOR=${MINOR:-0}
           PATCH=${PATCH:-0}
-          VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+
+          if [[ "$RAW_VERSION" =~ -[a-zA-Z]+\.([0-9]+) ]]; then
+            PRE_NUM="${BASH_REMATCH[1]}"
+            PRE_VAL=$((10#$PRE_NUM))
+          elif [[ "$RAW_VERSION" =~ - ]]; then
+            PRE_NUM=$(echo "$RAW_VERSION" | grep -oE '[0-9]+' | tail -n 1)
+            if [ -n "$PRE_NUM" ]; then
+              PRE_VAL=$((10#$PRE_NUM))
+            else
+              PRE_VAL=1
+            fi
+          else
+            PRE_VAL=99
+          fi
+
+          VERSION_CODE=$(( MAJOR * 1000000 + MINOR * 10000 + PATCH * 100 + PRE_VAL ))
           VERSION_NAME="${RAW_VERSION}"
           echo "Building APK with versionName=${VERSION_NAME}, versionCode=${VERSION_CODE}"
           flutter pub get
