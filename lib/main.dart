@@ -48,6 +48,8 @@ class _WalletHomePageState extends State<WalletHomePage> {
   final PdsClient _pdsClient = PdsClient();
   String _coreVersion = 'Ładowanie...';
   bool _pdsConnected = false;
+  bool _pdsAuthorized = false;
+  String? _clientId;
   final List<AccountDto> _accounts = [];
 
   final TextEditingController _accountNameCtrl = TextEditingController(text: 'Konto główne');
@@ -58,7 +60,7 @@ class _WalletHomePageState extends State<WalletHomePage> {
   void initState() {
     super.initState();
     _loadCoreVersion();
-    _checkPdsConnection();
+    _checkPdsStatus();
   }
 
   Future<void> _loadCoreVersion() async {
@@ -74,24 +76,67 @@ class _WalletHomePageState extends State<WalletHomePage> {
     }
   }
 
-  Future<void> _checkPdsConnection() async {
+  Future<void> _checkPdsStatus() async {
     try {
       final connected = await _pdsClient.isConnected();
+      final authorized = await _pdsClient.isAuthorized();
+      final clientId = await _pdsClient.getClientId();
       setState(() {
         _pdsConnected = connected;
+        _pdsAuthorized = authorized;
+        _clientId = clientId;
       });
     } catch (_) {
       setState(() {
         _pdsConnected = false;
+        _pdsAuthorized = false;
       });
+    }
+  }
+
+  Future<void> _requestPdsAuthorization() async {
+    try {
+      final result = await _pdsClient.requestAuthorization(
+        clientName: 'Wallet',
+        permissions: ['ReadEntities', 'WriteEntities', 'ReadBlobs', 'WriteBlobs'],
+      );
+      if (result.isAuthorized) {
+        final clientId = await _pdsClient.getClientId();
+        setState(() {
+          _pdsAuthorized = true;
+          _clientId = clientId;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Autoryzacja udana. ClientId: $clientId')),
+          );
+        }
+        await _connectPds();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Autoryzacja odrzucona przez użytkownika')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd autoryzacji: $e')),
+        );
+      }
     }
   }
 
   Future<void> _connectPds() async {
     try {
       final res = await _pdsClient.connect();
+      final authorized = await _pdsClient.isAuthorized();
+      final clientId = await _pdsClient.getClientId();
       setState(() {
         _pdsConnected = res;
+        _pdsAuthorized = authorized;
+        _clientId = clientId;
       });
     } catch (e) {
       if (mounted) {
@@ -345,6 +390,28 @@ class _WalletHomePageState extends State<WalletHomePage> {
               trailing: const Chip(
                 avatar: Icon(Icons.check_circle, size: 16, color: Colors.greenAccent),
                 label: Text('Zainicjalizowany'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: _pdsAuthorized ? Colors.teal.shade900 : Colors.amber.shade900,
+                child: Icon(
+                  _pdsAuthorized ? Icons.verified_user : Icons.gpp_maybe,
+                  color: _pdsAuthorized ? Colors.tealAccent : Colors.amberAccent,
+                ),
+              ),
+              title: const Text('Autoryzacja PDS Core'),
+              subtitle: Text(
+                _pdsAuthorized
+                    ? 'Autoryzowany (ClientId: ${_clientId ?? "zapisany"})'
+                    : 'Brak autoryzacji (wymagane)',
+              ),
+              trailing: ElevatedButton(
+                onPressed: _requestPdsAuthorization,
+                child: Text(_pdsAuthorized ? 'Zmień' : 'Autoryzuj'),
               ),
             ),
           ),
